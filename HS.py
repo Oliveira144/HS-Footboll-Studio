@@ -201,24 +201,20 @@ def hybrid_analysis_and_suggestion(history):
     if not history or len(history) < 4:
         return pattern, strategy, level, 'Aguardando dados suficientes para análise.'
 
-    # Pós-empate (🟡) temos regras especiais:
     if contains_draw_in_last_n(history, 1):
         last = history[0]
         opposite = '🔴' if last == '🔵' else '🔵'
         return pattern, strategy, level, f'Após empate, aposte na inversão: {opposite}'
 
-    # Padrão Surf:
     if pattern == 'Surf 🌊':
         last = history[0]
         return pattern, strategy, level, f'Aposte na última cor: {last}'
 
-    # Padrão 3x3:
     if pattern.startswith('3x3'):
         last = history[0]
         opposite = '🔴' if last == '🔵' else '🔵'
         return pattern, strategy, level, f'Após segunda tripla, aposte no oposto: {opposite}'
 
-    # Default para outros padrões usa função tradicional:
     bet_text = suggest_bet(pattern, history)
     return pattern, strategy, level, bet_text
 
@@ -286,37 +282,43 @@ def alert_signal(level):
     else:
         return '🟢 Normal'
 
-# --- Inicialização do estado ---
+# --- Inicialização estado ---
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- Interface ---
+# --- Interface aprimorada ---
 st.title("Football Studio - Análise Híbrida & Sistema Unificado (Cartas Físicas)")
 
-st.sidebar.header("Registrar novo resultado (mais recente à esquerda)")
-cols = st.sidebar.columns(4)
-if cols[0].button("🔴"):
+# Botões de controle na parte principal para melhor usabilidade
+col1, col2, col3, col4 = st.columns(4)
+if col1.button("🔴"):
     update_history("🔴")
-if cols[1].button("🔵"):
+if col2.button("🔵"):
     update_history("🔵")
-if cols[2].button("🟡"):
+if col3.button("🟡"):
     update_history("🟡")
-if cols[3].button("Limpar Histórico"):
+if col4.button("Limpar Histórico"):
     clear_history()
 
+st.markdown("---")
+
+# Histórico exibido com destaque
 st.subheader("Histórico (mais recente → mais antigo):")
-st.write(" ".join(st.session_state.history))
+if st.session_state.history:
+    hist_display = " ".join(st.session_state.history)
+    st.markdown(f"<div style='font-size: 2rem'>{hist_display}</div>", unsafe_allow_html=True)
+else:
+    st.write("Nenhum resultado registrado.")
 
-# Executar análise híbrida
+st.markdown("---")
+
+# Analise híbrida completa
 pattern, strategy, level, bet_recommendation = hybrid_analysis_and_suggestion(st.session_state.history)
-
-# Previsão de jogada usando sistema tradicional refinado
 prediction_raw = predict_next(st.session_state.history, level, pattern)
 prediction = normalize_prediction(prediction_raw)
-
 alert_msg = alert_signal(level)
 
-# Mostrar resultados
+# Exibir resultados
 st.subheader("Resumo da Análise")
 st.markdown(f"- **Padrão Detectado:** {pattern}")
 st.markdown(f"- **Descrição do Padrão / Estratégia:** {strategy}")
