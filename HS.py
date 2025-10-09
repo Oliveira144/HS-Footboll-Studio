@@ -1,0 +1,398 @@
+import streamlit as st
+
+# --- Funções de manipulação do histórico ---
+def update_history(new_value):
+    if len(st.session_state.history) >= 9:
+        st.session_state.history.pop()  # remove mais antigo
+    st.session_state.history.insert(0, new_value)  # insere mais recente
+
+def clear_history():
+    st.session_state.history = []
+
+# --- Funções de análise ---
+def count_alternations(history):
+    count = 0
+    for i in range(len(history) - 1):
+        if history[i] != history[i + 1] and history[i] != '🟡' and history[i + 1] != '🟡':
+            count += 1
+    return count
+
+def count_consecutive_repetitions(history):
+    count = max_count = 1
+    for i in range(1, len(history)):
+        if history[i] == history[i-1] and history[i] != '🟡':
+            count += 1
+            max_count = max(max_count,count)
+        else:
+            count = 1
+    return max_count
+
+def find_doubles_blocks(history):
+    blocks = 0
+    i = 0
+    while i < len(history)-1:
+        if history[i] == history[i+1] and history[i] != '🟡':
+            blocks += 1
+            i += 2
+        else:
+            i += 1
+    return blocks
+
+def find_triples_blocks(history):
+    blocks = 0
+    i = 0
+    while i < len(history)-2:
+        if history[i] == history[i+1] == history[i+2] and history[i] != '🟡':
+            blocks += 1
+            i += 3
+        else:
+            i += 1
+    return blocks
+
+def is_mirror_pattern(history):
+    n = len(history)
+    if n < 6:
+        return False
+    mid = n // 2
+    for i in range(mid):
+        left = history[i]
+        right = history[n-1 - i]
+        if left == '🟡' or right == '🟡':
+            continue
+        if left != right:
+            return False
+    return True
+
+def contains_draw_in_last_n(history, n):
+    return '🟡' in history[:n]
+
+def detect_zigzag_break(history):
+    for i in range(len(history) - 3):
+        segment = history[i:i+4]
+        if segment[0]==segment[2] and segment[1]==segment[3] and segment[0]!=segment[1] and '🟡' not in segment:
+            return True
+    return False
+
+# --- Sistema unificado de padrões (pattern detection) ---
+def detect_pattern(history):
+    if len(history) <4:
+        return 'Insuficientes dados', None
+    
+    alternations = count_alternations(history)
+    max_reps = count_consecutive_repetitions(history)
+    doubles = find_doubles_blocks(history)
+    triples = find_triples_blocks(history)
+    mirror = is_mirror_pattern(history)
+    draws = history.count('🟡')
+    zigzag_break = detect_zigzag_break(history)
+
+    # Padrões unificados conforme manual
+    if alternations >= 4 and max_reps <= 2 and not contains_draw_in_last_n(history,3):
+        if len(history)>=6 and history[4]==history[5]:
+            return 'Surf 🌊', "Ciclo de 4 a 8 alternâncias, pico na 5ª-6ª em repetição. Após empate 🟡, apostar inversão (lado oposto)."
+        return 'Surf 🌊', "Alternância suave, após 4 alternâncias apostar repetição da última cor."
+
+    if 3 <= alternations <= 6 and max_reps == 1:
+        if contains_draw_in_last_n(history,3):
+            return 'Ping-Pong 🏓', "Alternância limpa, após empate apostar inversão. Na 5ª jogada apostar repetição da última cor."
+        return 'Ping-Pong 🏓', "Alternância direta e limpa; preparar para quebra após 3+ alternâncias."
+
+    if doubles >= 1 and max_reps == 2:
+        return 'Alternância Suja 🔁', "Duplas indicam microquebras. Após dupla apostar alternância (cor oposta). Após duas duplas, preparar inversão."
+
+    if zigzag_break and doubles >= 1 and max_reps >= 2 and draws <=1 and len(history)>=6:
+        return 'Zig-Zag ⚡', "Simula alternância com reversões duplas. Apostar inversão após dupla; após empate apostar lado anterior."
+
+    if doubles >= 2:
+        if doubles >=3:
+            return '2x2 (Duplas) 🟦', "Ciclo de 3 a 4 blocos. Após 3ª dupla, apostar inversão total."
+        return '2x2 (Duplas) 🟦', "Duplas alternadas. Após 2ª dupla preparar inversão."
+
+    if triples >= 2:
+        return '3x3 (Triplas) 🔺', "Triplas alternadas. Após 2ª tripla apostar lado oposto. Se empate, valor reduzido."
+
+    if mirror:
+        return 'Espelhado 🪞', "Sequência refletida. Após centro apostar repetição da metade anterior."
+
+    if draws >= 1 and doubles >=2 and alternations >= 1:
+        return 'Colapso / Reverso Quântico 🌀', "Padrão irregular. Evitar apostas. Reentrar após ciclo limpo."
+
+    if contains_draw_in_last_n(history, 1):
+        return 'Âncora (Empate) ⚓', "Após empate apostar no lado oposto da última cor. Novo empate: inverter novamente."
+
+    if draws >= 2 and doubles >= 1 and triples >= 1:
+        return 'Camuflado 🕵️‍♂️', "Mistura de padrões. Apostar só após 2 blocos coerentes limpos."
+
+    return 'Padrão Desconhecido', 'Sem sugestão clara'
+
+# --- Manipulação nível ---
+def calculate_manipulation_level(history):
+    alternations = count_alternations(history)
+    draws = history.count('🟡')
+    max_reps = count_consecutive_repetitions(history)
+    doubles = find_doubles_blocks(history)
+    triples = find_triples_blocks(history)
+
+    if alternations <= 2 and draws == 0 and max_reps <= 2:
+        return 1
+    elif draws <= 2 and max_reps <= 2 and doubles <= 1:
+        return 3
+    elif alternations >= 4 and draws >= 1:
+        return 5
+    elif max_reps >= 3 or doubles >= 3:
+        return 7
+    elif triples >= 2 or draws >= 3 or doubles >= 4:
+        return 9
+    return 4
+
+# --- Normalizar predição ---
+def normalize_prediction(pred_raw):
+    keys = ['🔴', '🔵', '🟡']
+    total = sum(pred_raw.get(k, 0) for k in keys)
+    if total == 0:
+        return {k:33 for k in keys}
+    return {k: round(pred_raw.get(k, 0) / total * 100) for k in keys}
+
+# --- Previsão ---
+def predict_next(history, manipulation_level, pattern):
+    if not history:
+        return {'🔴':33, '🔵':33, '🟡':34}
+    last = history[0]
+    inverse = '🔴' if last == '🔵' else '🔵'
+
+    if pattern.startswith('Surf'):
+        if contains_draw_in_last_n(history, 1) and len(history) > 1:
+            return {history[1]:70, '🟡':10, last:20}
+        return {last:75, '🟡':5, inverse:20}
+
+    if pattern.startswith('Ping-Pong'):
+        if contains_draw_in_last_n(history,1) and len(history) > 1:
+            return {history[1]:80, '🟡':10, last:10}
+        return {last:70, '🟡':10, inverse:20}
+
+    if pattern.startswith('Alternância Suja'):
+        return {inverse:70, last:25, '🟡':5}
+
+    if pattern.startswith('Zig-Zag'):
+        return {inverse:75, last:20, '🟡':5}
+
+    if pattern.startswith('2x2'):
+        return {inverse:80, last:15, '🟡':5}
+
+    if pattern.startswith('3x3'):
+        return {inverse:80, last:15, '🟡':5}
+
+    if pattern.startswith('Espelhado'):
+        return {last:70, '🟡':10, inverse:20}
+
+    if pattern.startswith('Colapso'):
+        return {'🔴':33, '🔵':33, '🟡':34}
+
+    if pattern.startswith('Âncora'):
+        return {inverse:75, last:20, '🟡':5}
+
+    if pattern.startswith('Camuflado'):
+        return {'🔴':33, '🔵':33, '🟡':34}
+
+    return {'🔴':33, '🔵':33, '🟡':34}
+
+# --- Sinal de alerta ---
+def alert_signal(level):
+    if 4 <= level <= 6:
+        return '🟢 Brecha Detectada'
+    elif 7 <= level <= 8:
+        return '🟡 Risco Médio'
+    elif level == 9:
+        return '🔴 Manipulação Alta'
+    else:
+        return '🟢 Normal'
+
+# --- Sugestões de aposta diretas ---
+def suggest_bet(pattern, history):
+    if not history or len(history) < 2:
+        return 'Aguardando mais dados.'
+
+    if pattern == 'Insuficientes dados':
+        return 'Dados insuficientes.'
+
+    last = history[0]
+    opposite = '🔴' if last == '🔵' else '🔵'
+
+    if pattern == 'Surf 🌊':
+        if '🟡' in history[:3]:
+            return f'Aposte na inversão: {opposite}'
+        return f'Aposte na última cor: {last}'
+
+    if pattern == 'Ping-Pong 🏓':
+        if '🟡' in history[:3]:
+            return f'Aposte na inversão: {opposite}'
+        return f'Aposte na última cor: {last}'
+
+    if pattern == 'Alternância Suja 🔁':
+        return f'Aposte na alternância: {opposite}'
+
+    if pattern == 'Zig-Zag ⚡':
+        return f'Aposte na inversão após dupla: {opposite}'
+
+    if pattern.startswith('2x2'):
+        return f'Aposte no lado oposto após segunda dupla: {opposite}'
+
+    if pattern.startswith('3x3'):
+        if '🟡' in history[:3]:
+            return f'Após empate, inverta e reduza aposta: {opposite}'
+        return f'Aposte na inversão após 2 triplas: {opposite}'
+
+    if pattern == 'Espelhado 🪞':
+        return f'Repita metade anterior: {last}'
+
+    if pattern == 'Colapso / Reverso Quântico 🌀':
+        return 'Não apostar; aguarde padrão limpo.'
+
+    if pattern == 'Âncora (Empate) ⚓':
+        if '🟡' in history[:2]:
+            if len(history) > 2 and history[2] == last:
+                return f'Aposte no mesmo lado após empate: {last}'
+            return f'Aposte na inversão: {opposite}'
+        return f'Aposte na inversão: {opposite}'
+
+    if pattern == 'Camuflado 🕵️‍♂️':
+        return 'Aposte após confirmação de blocos limpos.'
+
+    return 'Sem sugestão clara.'
+
+# --- Adição do manual detalhado dentro do app ---
+def show_manual():
+    st.markdown("### 🎮 1. Entendimento Base do Jogo")
+    st.markdown("""Football Studio é um jogo estilo Dragon Tiger com cartas físicas,
+distribuindo 🔴 Home e 🔵 Away. Empates 🟡 são frequentes e estratégicos.""")
+    
+    st.markdown("### 🧩 2. Tipos Fundamentais de Padrões")
+    st.markdown("""
+**A. Padrões Alternantes (Oscilação Natural)**
+- Sequências típicas: 🔴 🔵 🔴 🔵 ...
+- Duram 4-8 rodadas.
+- Alta previsibilidade após 3 alternâncias.
+- Quebra prevista após 6-7 ciclos seguidos.
+
+**B. Padrões Repetitivos (Domínio)**
+- Sequências longas de uma cor (ex: 🔴🔴🔴🔵).
+- Blocos de 3 a 10 resultados.
+- Quebra geralmente após sequências ímpares (5 ou 7).
+
+**C. Padrões com Empate (Âncoras e Colapsos)**
+- Empate 🟡 reseta e confunde o padrão.
+- Empates duplos indicam mudanças profundas no ciclo.
+""")
+
+    st.markdown("### 🧠 3. Estruturas Complexas")
+    st.markdown("""
+O jogo mostra macroestruturas de 9-12 rodadas, que incluem:
+- Alternância Estável
+- Domínio Disfarçado
+- Reversão Camuflada
+- Espelhamento
+- Ciclo Quântico
+""")
+
+    st.markdown("### 🔄 4. Comportamentos Pós-Empate")
+    st.markdown("""
+Após empate 🟡:
+- 70% de chance de inversão
+- 20% de chance de repetição
+- 10% chance de empate/caos
+""")
+
+    st.markdown("### ⚙️ 5. Níveis de Manipulação")
+    st.markdown("""
+1. Natural, 2. Ciclo Controlado, 3. Pseudo Natural, 4. Espelhado,
+5. Reset Empate, 6. Anti-Padrão, 7. Oscilação Binária,
+8. Colapso Camuflado, 9. Quântico (máximo).
+""")
+
+    st.markdown("### 🎯 6. Estratégia Profissional de Leitura")
+    st.markdown("""
+1. Dividir histórico em blocos de 9 resultados.
+2. Identificar tipo predominante (A, B ou C).
+3. Analisar posição/frequência do empate.
+4. Aplicar leitura por ciclo: 
+   - Alternância prevê repetição
+   - Domínio prevê quebra
+   - Empate prevê inversão
+5. Observar dealer (físico) para mudanças sutis
+""")
+
+    st.markdown("### 🧩 7. Padrões Avançados Observados")
+    st.markdown("""
+- Cadeia Quebrada: forçamentos de quebra.
+- Loop Disfarçado: ciclo mascarado.
+- Âncora de Empate: gatilho de domínio.
+- Camuflagem Linear: falso padrão.
+- Ciclo de Colapso: reinício total.
+""")
+
+    st.markdown("### 🔔 8. Conclusão")
+    st.markdown("""
+Football Studio segue um sistema cíclico, com padrões que:
+- Se repetem em blocos de 9-12,
+- Usam 🟡 como reset e engano,
+- Alternam domínio e caos controlado.
+""")
+
+# --- Inicializar estado ---
+if 'history' not in st.session_state:
+    st.session_state.history = []
+
+# --- Interface ---
+st.title("Football Studio - Sistema Unificado & Análise Completa (Cartas Físicas)")
+
+st.sidebar.header("Registrar novo resultado (mais recente à esquerda)")
+cols = st.sidebar.columns(4)
+if cols[0].button("🔴"):
+    update_history("🔴")
+if cols[1].button("🔵"):
+    update_history("🔵")
+if cols[2].button("🟡"):
+    update_history("🟡")
+if cols[3].button("Limpar Histórico"):
+    clear_history()
+
+st.subheader("Histórico (mais recente → mais antigo):")
+st.write(" ".join(st.session_state.history))
+
+# Mostrar manual de análise (toggle com botão)
+if 'show_manual' not in st.session_state:
+    st.session_state.show_manual = False
+
+if st.checkbox("Mostrar Manual Completo de Análise"):
+    st.session_state.show_manual = True
+else:
+    st.session_state.show_manual = False
+
+if st.session_state.show_manual:
+    show_manual()
+
+# Detectar padrão, manipulação, previsão
+pattern, strategy = detect_pattern(st.session_state.history)
+level = calculate_manipulation_level(st.session_state.history)
+prediction_raw = predict_next(st.session_state.history, level, pattern)
+prediction = normalize_prediction(prediction_raw)
+alert_msg = alert_signal(level)
+bet_recommendation = suggest_bet(pattern, st.session_state.history)
+
+# Exibir análise resumida
+st.subheader("Resumo da Análise")
+st.markdown(f"- **Padrão Detectado:** {pattern}")
+st.markdown(f"- **Descrição do Padrão / Estratégia:** {strategy}")
+st.markdown(f"- **Nível de Manipulação:** {level}")
+st.markdown(f"- **Sinal de Alerta:** {alert_msg}")
+
+# Previsão próxima jogada
+st.subheader("Previsão da Próxima Jogada")
+if not st.session_state.history or pattern == "Insuficientes dados":
+    st.write("Não há dados suficientes para previsão.")
+else:
+    st.write(f"🔴 {prediction['🔴']}% | 🔵 {prediction['🔵']}% | 🟡 {prediction['🟡']}%")
+
+# Sugestão de aposta
+st.subheader("Sugestão de Aposta")
+st.write(bet_recommendation)
