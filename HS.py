@@ -74,7 +74,6 @@ class FootballStudioSuperInteligente:
                 atual = res[i]
                 cont = 1
         streaks[(atual, cont)] +=1
-        # cálculo probabilidade baseada em streaks recentes:
         total_streaks = sum(streaks.values())
         prob_streaks = {}
         for (estado,length), count in streaks.items():
@@ -83,7 +82,6 @@ class FootballStudioSuperInteligente:
 
     def prever_proximo(self):
         if len(self.historico) < 10:
-            # Poucos dados: usa apenas frequência simples
             freq = self.frequencia_simples()
             return max(freq, key=freq.get), 'Baixa'
 
@@ -94,38 +92,30 @@ class FootballStudioSuperInteligente:
         ultimo = self.historico[-1][2]
         penultimo = self.historico[-2][2] if len(self.historico)>1 else None
 
-        # Ponderação base
         decisao = {estado:0 for estado in ['Casa','Visitante','Empate']}
 
-        # Frequência simples
         for e in decisao:
             decisao[e] += freq.get(e,0) * self.pesos['freq_simples']
 
-        # Markov ordem 1
         for e in decisao:
             decisao[e] += markov1.get((ultimo, e),0) * self.pesos['markov_ord1']
 
-        # Markov ordem 2
         if penultimo:
             for e in decisao:
                 decisao[e] += markov2.get(((penultimo, ultimo), e), 0) * self.pesos['markov_ord2']
 
-        # Streaks: estimar se há uma probabilidade baixa de continuar streak forte e sugerir reversão
         prob_reversao = False
         streak_max = max((length for (state,length) in streaks if state==ultimo), default=0)
-        if streak_max >= 3: # adotar limite para considerar reversão
+        if streak_max >= 3:
             prob_reversao = True
 
         if prob_reversao:
-            # Penaliza a continuação da mesma sequência para evitar falácia do apostador
             decisao[ultimo] *= 0.4
-            # Distribuir o peso penalizado entre os outros estados
             outros = [e for e in decisao if e != ultimo]
             distrib = (1 - decisao[ultimo]) / len(outros)
             for e in outros:
                 decisao[e] += distrib
 
-        # Escolha final
         melhor = max(decisao, key=decisao.get)
         confianca = decisao[melhor]
 
