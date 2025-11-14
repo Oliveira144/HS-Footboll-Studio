@@ -1,3 +1,4 @@
+import streamlit as st
 from collections import Counter, deque, defaultdict
 
 class FootballStudioSuperInteligente:
@@ -146,64 +147,46 @@ class FootballStudioSuperInteligente:
 
     def mostrar_historico(self):
         if not self.historico:
-            print("Nenhuma rodada registrada.")
-            return
-        print("Histórico (últimas rodadas):")
+            return ["Nenhuma rodada registrada."]
+        linhas = []
         for i, (c, v, r) in enumerate(self.historico, 1):
-            print(f"{i}: Casa {c} - Visitante {v} => Resultado: {r}")
+            linhas.append(f"{i}: Casa {c} - Visitante {v} => Resultado: {r}")
+        return linhas
 
-def main():
-    fs = FootballStudioSuperInteligente()
-    print("=== Football Studio Super Inteligente ===")
-    print(f"Saldo inicial: {fs.saldo}
-")
+# Streamlit interface
+st.title("Football Studio Super Inteligente")
 
-    while True:
-        print("
-Menu:")
-        print("1 - Apostar (inserir resultado manual)")
-        print("2 - Ver sugestão super inteligente")
-        print("3 - Ver histórico")
-        print("4 - Sair")
+if 'jogo' not in st.session_state:
+    st.session_state.jogo = FootballStudioSuperInteligente()
 
-        opcao = input("Escolha uma opção: ").strip()
+jogo = st.session_state.jogo
 
-        if opcao == '1':
-            aposta = input("Aposte em (Casa, Visitante, Empate): ").capitalize()
-            if aposta not in ['Casa', 'Visitante', 'Empate']:
-                print("Aposta inválida.")
-                continue
-            try:
-                valor = int(input("Valor da aposta: "))
-            except ValueError:
-                print("Valor inválido, digite número inteiro.")
-                continue
-            casa = input("Carta da Casa (2-10, J, Q, K, A): ").upper()
-            visitante = input("Carta do Visitante (2-10, J, Q, K, A): ").upper()
-            sucesso, res = fs.apostar(aposta, valor, casa, visitante)
-            if sucesso:
-                resultado, ganho, saldo = res
-                print(f"Resultado da rodada: {resultado}")
-                if ganho > 0:
-                    print(f"Você ganhou {ganho} unidades.")
-                else:
-                    print(f"Você perdeu {valor} unidades.")
-                print(f"Saldo atual: {saldo}")
-            else:
-                print(f"Erro: {res}")
+st.write(f"Saldo atual: {jogo.saldo}")
 
-        elif opcao == '2':
-            print(fs.sugerir_aposta())
+with st.form(key='aposta_form'):
+    aposta = st.selectbox("Aposte em:", ["Casa", "Visitante", "Empate"])
+    valor = st.number_input("Valor da aposta:", min_value=1, step=1)
+    casa = st.text_input("Carta da Casa (2-10, J, Q, K, A):").upper()
+    visitante = st.text_input("Carta do Visitante (2-10, J, Q, K, A):").upper()
+    submit = st.form_submit_button("Registrar Aposta")
 
-        elif opcao == '3':
-            fs.mostrar_historico()
-
-        elif opcao == '4':
-            print("Encerrando o jogo. Até logo!")
-            break
-
+if submit:
+    sucesso, resultado = jogo.apostar(aposta, valor, casa, visitante)
+    if sucesso:
+        res, ganho, saldo = resultado
+        st.success(f"Resultado da rodada: {res}")
+        if ganho > 0:
+            st.success(f"Você ganhou {ganho} unidades!")
         else:
-            print("Opção inválida, tente novamente.")
+            st.warning(f"Você perdeu {valor} unidades.")
+        st.write(f"Saldo atualizado: {saldo}")
+    else:
+        st.error(f"Erro: {resultado}")
 
-if __name__ == '__main__':
-    main()
+st.subheader("Sugestão de Aposta")
+st.write(jogo.sugerir_aposta())
+
+st.subheader("Histórico das Rodadas")
+historico = jogo.mostrar_historico()
+for linha in historico:
+    st.text(linha)
